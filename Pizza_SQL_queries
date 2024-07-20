@@ -1,0 +1,353 @@
+
+/*
+SQL Case study project
+*/
+
+
+-- let's  import the csv files
+-- Now understand each table (all columns)
+select * from order_details;  -- order_details_id	order_id	pizza_id	quantity
+
+select * from pizzas -- pizza_id, pizza_type_id, size, price
+
+select * from orders  -- order_id, date, time
+
+select * from pizza_types;  -- pizza_type_id, name, category, ingredients
+
+
+/*
+Basic:
+Retrieve the total number of orders placed.
+Calculate the total revenue generated from pizza sales.
+Identify the highest-priced pizza.
+Identify the most common pizza size ordered.
+List the top 5 most ordered pizza types along with their quantities.
+
+*/
+--Retrieve the total number of orders placed.
+select count(distinct order_id) from order_details 
+select count(distinct order_id) from orders
+
+
+--Calculate the total revenue generated from pizza sales.
+SELECT 
+    order_details.pizza_id, 
+    order_details.quantity, 
+    pizzas.price
+FROM 
+    order_details 
+JOIN 
+    pizzas 
+ON 
+    pizzas.pizza_id = order_details.pizza_id;
+
+
+
+SELECT 
+    CAST(SUM(order_details.quantity * CAST(pizzas.price AS DECIMAL(10, 2))) AS DECIMAL(10, 2)) AS 'Total Revenue'
+FROM 
+    order_details 
+JOIN 
+    pizzas 
+ON 
+    pizzas.pizza_id = order_details.pizza_id
+
+
+	--Identify the highest-priced pizza
+
+	SELECT TOP 1 
+    pizza_types.name AS 'Pizza Name', 
+    CAST(pizzas.price AS DECIMAL(10, 2)) AS 'Price'
+FROM 
+    pizzas 
+JOIN 
+    pizza_types ON pizza_types.pizza_type_id = pizzas.pizza_type_id
+ORDER BY 
+    CAST(pizzas.price AS DECIMAL(10, 2)) DESC;
+
+	--Identify the top 4-priced pizza
+
+	SELECT TOP 4 
+    pizza_types.name AS 'Pizza Name', 
+    CAST(pizzas.price AS DECIMAL(10, 2)) AS 'Price'
+FROM 
+    pizzas 
+JOIN 
+    pizza_types ON pizza_types.pizza_type_id = pizzas.pizza_type_id
+ORDER BY 
+    CAST(pizzas.price AS DECIMAL(10, 2)) DESC;
+
+--Identify the most common pizza size ordered.
+
+SELECT 
+    pizzas.size, 
+    COUNT(DISTINCT order_id) AS 'No of Orders', 
+    SUM(CAST(quantity AS INT)) AS 'Total Quantity Ordered'
+FROM 
+    order_details
+JOIN 
+    pizzas ON pizzas.pizza_id = order_details.pizza_id
+GROUP BY 
+    pizzas.size
+ORDER BY 
+    COUNT(DISTINCT order_id) DESC;
+
+---- List the top 5 most ordered pizza types along with their quantities.
+	SELECT TOP 5 
+    pizza_types.name AS 'Pizza', 
+    SUM(CAST(order_details.quantity AS INT)) AS 'Total Ordered'
+FROM 
+    order_details
+JOIN 
+    pizzas ON pizzas.pizza_id = order_details.pizza_id
+JOIN 
+    pizza_types ON pizza_types.pizza_type_id = pizzas.pizza_type_id
+GROUP BY 
+    pizza_types.name 
+ORDER BY 
+    SUM(CAST(order_details.quantity AS INT)) DESC;
+
+
+	-- Join the necessary tables to find the total quantity of each pizza category ordered.
+
+SELECT TOP 5 
+    pizza_types.category AS 'Category', 
+    SUM(CAST(order_details.quantity AS INT)) AS 'Total Quantity Ordered'
+FROM 
+    order_details
+JOIN 
+    pizzas ON pizzas.pizza_id = order_details.pizza_id
+JOIN 
+    pizza_types ON pizza_types.pizza_type_id = pizzas.pizza_type_id
+GROUP BY 
+    pizza_types.category 
+ORDER BY 
+    SUM(CAST(order_details.quantity AS INT)) DESC;
+
+	-- Determine the distribution of orders by hour of the day.
+
+select datepart(hour, time) as 'Hour of the day', count(distinct order_id) as 'No of Orders'
+from orders
+group by datepart(hour, time) 
+order by [No of Orders] desc
+
+
+
+-- find the category-wise distribution of pizzas
+
+select category, count(distinct pizza_type_id) as [No of pizzas]
+from pizza_types
+group by category
+order by [No of pizzas]
+
+
+-- Calculate the average number of pizzas ordered per day.
+
+WITH cte AS (
+    SELECT 
+        orders.date AS 'Date', 
+        SUM(CAST(order_details.quantity AS DECIMAL(10, 2))) AS 'Total Pizza Ordered that day'
+    FROM 
+        order_details
+    JOIN 
+        orders ON order_details.order_id = orders.order_id
+    GROUP BY 
+        orders.date
+)
+SELECT 
+    AVG([Total Pizza Ordered that day]) AS [Avg Number of pizzas ordered per day]
+FROM 
+    cte;
+
+
+-- alternate using subquery
+SELECT 
+    AVG([Total Pizza Ordered that day]) AS [Avg Number of pizzas ordered per day]
+FROM 
+(
+    SELECT 
+        orders.date AS 'Date', 
+        SUM(CAST(order_details.quantity AS DECIMAL(10, 2))) AS 'Total Pizza Ordered that day'
+    FROM 
+        order_details
+    JOIN 
+        orders ON order_details.order_id = orders.order_id
+    GROUP BY 
+        orders.date
+) AS pizzas_ordered;
+
+
+
+-- Determine the top 3 most ordered pizza types based on revenue.
+
+SELECT TOP 3 
+    pizza_types.name AS 'Pizza Type', 
+    SUM(CAST(order_details.quantity AS INT) * CAST(pizzas.price AS DECIMAL(10, 2))) AS 'Revenue from pizza'
+FROM 
+    order_details 
+JOIN 
+    pizzas ON pizzas.pizza_id = order_details.pizza_id
+JOIN 
+    pizza_types ON pizza_types.pizza_type_id = pizzas.pizza_type_id
+GROUP BY 
+    pizza_types.name
+ORDER BY 
+    [Revenue from pizza] DESC;
+
+
+
+
+/*
+Advanced:
+Calculate the percentage contribution of each pizza type to total revenue.
+Analyze the cumulative revenue generated over time.
+Determine the top 3 most ordered pizza types based on revenue for each pizza category.
+*/
+
+
+-- Calculate the percentage contribution of each pizza type to total revenues
+
+
+SELECT 
+    pizza_types.category AS 'Category', 
+    CONCAT(
+        CAST(
+            (SUM(CAST(order_details.quantity AS INT) * CAST(pizzas.price AS DECIMAL(10, 2))) / 
+            (SELECT SUM(CAST(order_details.quantity AS INT) * CAST(pizzas.price AS DECIMAL(10, 2)))
+             FROM order_details 
+             JOIN pizzas ON pizzas.pizza_id = order_details.pizza_id
+            )
+            ) * 100
+        AS DECIMAL(10, 2)),
+        '%'
+    ) AS 'Revenue Contribution from Pizza'
+FROM 
+    order_details 
+JOIN 
+    pizzas ON pizzas.pizza_id = order_details.pizza_id
+JOIN 
+    pizza_types ON pizza_types.pizza_type_id = pizzas.pizza_type_id
+GROUP BY 
+    pizza_types.category;
+-- order by [Revenue from pizza] desc
+
+-- revenue contribution from each pizza by pizza name
+WITH RevenueCTE AS (
+    SELECT 
+        pizza_types.name AS 'Pizza Type', 
+        SUM(CAST(order_details.quantity AS INT) * CAST(pizzas.price AS DECIMAL(10, 2))) AS Revenue
+    FROM 
+        order_details 
+    JOIN 
+        pizzas ON pizzas.pizza_id = order_details.pizza_id
+    JOIN 
+        pizza_types ON pizza_types.pizza_type_id = pizzas.pizza_type_id
+    GROUP BY 
+        pizza_types.name
+),
+TotalRevenue AS (
+    SELECT 
+        SUM(Revenue) AS TotalRevenue
+    FROM 
+        RevenueCTE
+)
+SELECT 
+    rc.[Pizza Type],
+    CAST(
+        (rc.Revenue / tr.TotalRevenue) * 100 AS DECIMAL(10, 2)
+    ) AS RevenuePercentage,
+    CONCAT(
+        CAST(
+            (rc.Revenue / tr.TotalRevenue) * 100 AS DECIMAL(10, 2)
+        ), 
+        '%'
+    ) AS 'Revenue Contribution from Pizza'
+FROM 
+    RevenueCTE rc
+CROSS JOIN 
+    TotalRevenue tr
+ORDER BY 
+    RevenuePercentage DESC;
+
+
+
+-- Analyze the cumulative revenue generated over time.
+-- use of aggregate window function (to get the cumulative sum)
+WITH cte AS (
+    SELECT 
+        date AS 'Date', 
+        CAST(SUM(CAST(order_details.quantity AS INT) * CAST(pizzas.price AS DECIMAL(10, 2))) AS DECIMAL(10, 2)) AS Revenue
+    FROM 
+        order_details 
+    JOIN 
+        orders ON order_details.order_id = orders.order_id
+    JOIN 
+        pizzas ON pizzas.pizza_id = order_details.pizza_id
+    GROUP BY 
+        date
+)
+SELECT 
+    Date, 
+    Revenue, 
+    SUM(Revenue) OVER (ORDER BY Date) AS 'Cumulative Sum'
+FROM 
+    cte
+ORDER BY 
+    Date;
+
+	--
+
+	WITH cte AS (
+    SELECT 
+        date AS 'Date', 
+        CAST(SUM(CAST(order_details.quantity AS INT) * CAST(pizzas.price AS DECIMAL(10, 2))) AS DECIMAL(10, 2)) AS Revenue
+    FROM 
+        order_details 
+    JOIN 
+        orders ON order_details.order_id = orders.order_id
+    JOIN 
+        pizzas ON pizzas.pizza_id = order_details.pizza_id
+    GROUP BY 
+        date
+)
+SELECT 
+    Date, 
+    Revenue, 
+    SUM(Revenue) OVER (ORDER BY Date) AS 'Cumulative Sum'
+FROM 
+    cte
+ORDER BY 
+    Date;
+
+
+	----
+	SELECT 
+    quantity, 
+    price,
+    CAST(quantity AS INT) * CAST(price AS DECIMAL(10, 2)) AS TestMultiplication
+FROM 
+    order_details
+JOIN 
+    pizzas ON pizzas.pizza_id = order_details.pizza_id;
+	
+-- Determine the top 3 most ordered pizza types based on revenue for each pizza category.
+
+with cte as (
+select category, name, cast(sum(quantity*price) as decimal(10,2)) as Revenue
+from order_details 
+join pizzas on pizzas.pizza_id = order_details.pizza_id
+join pizza_types on pizza_types.pizza_type_id = pizzas.pizza_type_id
+group by category, name
+-- order by category, name, Revenue desc
+)
+, cte1 as (
+select category, name, Revenue,
+rank() over (partition by category order by Revenue desc) as rnk
+from cte 
+)
+select category, name, Revenue
+from cte1 
+where rnk in (1,2,3)
+order by category, name, Revenue
+
+
